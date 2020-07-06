@@ -6,11 +6,11 @@ updateUI <- function(id) {
     selectInput(ns("tableName"), "Choose a table", character(0)),
     selectInput(ns("col"), "Select the ID column", NULL),
     radioButtons(ns("val"), "Choose ID of entry to update", ""),
-    box(title = "Current entry", status = "primary", 
+    box(title = "Current entry", status = "primary",
       solidHeader = TRUE, width = 12,
         tableOutput(ns("current"))
     ),
-    box(title = "New proposed entry", status = "success", 
+    box(title = "New proposed entry", status = "success",
       solidHeader = TRUE, width = 12,
         uiOutput(ns("fields"))
     )
@@ -18,40 +18,40 @@ updateUI <- function(id) {
 }
 
 update <- function(input, output, session, pool, reqTable, reqColInTable, goHome) {
-  
+
   observeEvent(tbls(), {
     updateSelectInput(session, "tableName", choices = tbls())
   })
-  
+
   fields <- reactive({
     reqTable(input$tableName)
-    pool %>% tbl(input$tableName) %>% select_(paste0("-", input$col)) %>% 
+    pool %>% tbl(input$tableName) %>% select_(paste0("-", input$col)) %>%
       head %>% collect %>% lapply(type_sum) %>% unlist
   })
-  
+
   observe({
     reqTable(input$tableName)
     cols <- db_query_fields(pool, input$tableName)
     updateSelectInput(session, "col", choices = cols)
   })
-  
+
   observe({
     reqColInTable(input$tableName, input$col)
     req(db_query_rows(pool, input$tableName) > 0)
-    
+
     df <- as_data_frame(pool %>% tbl(input$tableName) %>% select(input$col))
     allUniqueVals <- unique(df[[input$col]])
     updateRadioButtons(session, "val", choices = allUniqueVals, inline = TRUE)
   })
-  
+
   output$current <- renderTable({
     reqColInTable(input$tableName, input$col)
     req(input$val)
-    
+
     filterVar <- sym(input$col)
-    pool %>% tbl(input$tableName) %>% filter(filterVar == input$val)
+    pool %>% tbl(input$tableName) %>% filter(filterVar == local(input$val))
   })
-  
+
   output$fields <- renderUI({
     fieldNames <- names(fields())
     fieldTypes <- unname(fields())
@@ -68,15 +68,15 @@ update <- function(input, output, session, pool, reqTable, reqColInTable, goHome
     }
     selections
   })
-  
+
   observeEvent(input$update, {
     entryValues <- data.frame(stringsAsFactors = FALSE,
       lapply(fields(), type.convert)
     )
-    
+
     for (name in names(entryValues)) {
       id <- paste0("field", name)
-      
+
       if (!isTruthy(input[[id]])) {
         showModal(modalDialog(
           title = "NULL value",
@@ -85,10 +85,10 @@ update <- function(input, output, session, pool, reqTable, reqColInTable, goHome
         ))
         return()
       }
-      
+
       entryValues[name] <- input[[id]]
     }
-    
+
     col <- if (input$col %in% db_query_fields(pool, input$tableName)) {
       input$col
     } else {
@@ -99,13 +99,13 @@ update <- function(input, output, session, pool, reqTable, reqColInTable, goHome
         ))
         return()
     }
-    
-    sql <- paste0("UPDATE ?table SET ", 
-      paste0(names(entryValues), " = ?", names(entryValues), collapse = ", "), 
+
+    sql <- paste0("UPDATE ?table SET ",
+      paste0(names(entryValues), " = ?", names(entryValues), collapse = ", "),
       " WHERE ", col, " = ?idVal;")
-    
+
     query <- sqlInterpolate(pool, sql, .dots = c(
-      list(table = input$tableName), 
+      list(table = input$tableName),
       as_list(entryValues),
       list(idVal = input$val)
     ))

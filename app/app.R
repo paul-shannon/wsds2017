@@ -45,19 +45,19 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   goHome <- function() updateTabItems(session, "tabs", "overview")
-  
+
   reqTable <- function(tableName) {
     tbls()
     req(tableName)
     req(tableName %in% db_list_tables(pool))
   }
-  
+
   reqColInTable <- function(tableName, colName) {
     reqTable(tableName)
     req(colName)
     req(colName %in% db_query_fields(pool, tableName))
   }
-  
+
   callModule(overview, "overview-module", pool)
   callModule(createTable, "createTable-module", pool, goHome)
   callModule(createEntry, "createEntry-module", pool, reqTable, goHome)
@@ -66,4 +66,5 @@ server <- function(input, output, session) {
   callModule(delete, "delete-module", pool, reqTable, reqColInTable, goHome)
 }
 
-shinyApp(ui, server)
+runApp(shinyApp(ui, server), port=8001)
+
